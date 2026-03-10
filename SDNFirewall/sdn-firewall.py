@@ -45,6 +45,50 @@ def firewall_policy_processing(policies):
         # HINT:  Think about how to use the priority in your flow modification.
 
         rule = None # Please note that you need to redefine this variable below to create a valid POX Flow Modification Object
+        rule = of.ofp_flow_mod()
+        match = of.ofp_match()
+        rule.match = match
+        count = 0
+        if policy['mac-src'] != '-':
+            match.dl_src = EthAddr(policy['mac-src'])
+            count += 1
+
+        if policy['mac-dst'] != '-':
+            match.dl_dst = EthAddr(policy['mac-dst'])
+            count += 1
+
+        if policy['ip-src'] != '-' or policy['ip-dst'] != '-' or policy['ipprotocol'] != '-' or policy['port-src'] != '-' or policy['port-dst'] != '-':
+            match.dl_type = 0x0800
+
+        if policy.get('ip-src', '-') != '-':
+            match.nw_src = policy['ip-src-address']
+            match.nw_src_mask = int(policy['ip-src-subnet'])
+            count += 2
+
+        if policy.get('ip-dst', '-') != '-':
+            match.nw_dst = policy['ip-dst-address']
+            match.nw_dst_mask = int(policy['ip-dst-subnet'])
+            count += 2
+
+        proto = None
+        if policy.get('ipprotocol', '-') != '-':
+            proto = int(policy['ipprotocol'])
+            match.nw_proto = proto
+            count += 1
+
+        if policy.get('port-src', '-') != '-':
+            match.tp_src = int(policy['port-src'])
+            count += 1
+
+        if policy.get('port-dst', '-') != '-':
+            match.tp_dst = int(policy['port-dst'])
+            count += 1
+
+        priority = 2000 if policy['action'] == 'Allow' else 1000
+        rule.priority = priority + count
+
+        if policy['action'] == 'Allow':
+            rule.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
 
 
         # End Code Here
