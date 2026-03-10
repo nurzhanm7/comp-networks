@@ -6,7 +6,7 @@ from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 from pox.lib.revent import *
-from pox.lib.addresses import EthAddr, IPAddr
+from pox.lib.addresses import EthAddr
 
 # You may use this space before the firewall_policy_processing function to add any extra function that you 
 # may need to complete your firewall implementation.  No additional functions "should" be required to complete
@@ -61,12 +61,12 @@ def firewall_policy_processing(policies):
             match.dl_type = 0x0800
 
         if policy.get('ip-src', '-') != '-':
-            match.nw_src = IPAddr(policy['ip-src-address'])
+            match.nw_src = policy['ip-src-address']
             match.nw_src_mask = int(policy['ip-src-subnet'])
             count += 2
 
         if policy.get('ip-dst', '-') != '-':
-            match.nw_dst = IPAddr(policy['ip-dst-address'])
+            match.nw_dst = policy['ip-dst-address']
             match.nw_dst_mask = int(policy['ip-dst-subnet'])
             count += 2
 
