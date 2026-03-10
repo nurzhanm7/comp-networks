@@ -50,69 +50,45 @@ def firewall_policy_processing(policies):
         rule.match = match
         count = 0
         if policy['mac-src'] != '-':
-            try:
-                match.dl_src = EthAddr(policy['mac-src'])
-                count += 1
-            except Exception:
-                pass
+            match.dl_src = EthAddr(policy['mac-src'])
+            count += 1
 
         if policy['mac-dst'] != '-':
-            try:
-                match.dl_dst = EthAddr(policy['mac-dst'])
-                count += 1
-            except Exception:
-                pass
+            match.dl_dst = EthAddr(policy['mac-dst'])
+            count += 1
 
         if policy['ip-src'] != '-' or policy['ip-dst'] != '-' or policy['ipprotocol'] != '-' or policy['port-src'] != '-' or policy['port-dst'] != '-':
             match.dl_type = 0x0800
 
         if policy.get('ip-src', '-') != '-':
-            try:
-                match.nw_src = IPAddr(policy['ip-src-address'])
-                match.nw_src_mask = int(policy['ip-src-subnet'])
-                count += 2
-            except Exception:
-                pass
+            match.nw_src = IPAddr(policy['ip-src-address'])
+            match.nw_src_mask = int(policy['ip-src-subnet'])
+            count += 2
 
         if policy.get('ip-dst', '-') != '-':
-            try:
-                match.nw_dst = IPAddr(policy['ip-dst-address'])
-                match.nw_dst_mask = int(policy['ip-dst-subnet'])
-                count += 2
-            except Exception:
-                pass
+            match.nw_dst = IPAddr(policy['ip-dst-address'])
+            match.nw_dst_mask = int(policy['ip-dst-subnet'])
+            count += 2
 
+        proto = None
         if policy.get('ipprotocol', '-') != '-':
-            try:
-                proto = int(policy['ipprotocol'])
-                match.nw_proto = proto
-                count += 1
-            except Exception:
-                proto = None
-        else:
-            proto = None
+            proto = int(policy['ipprotocol'])
+            match.nw_proto = proto
+            count += 1
 
         if policy.get('port-src', '-') != '-':
-            try:
-                match.tp_src = int(policy['port-src'])
-                count += 1
-            except Exception:
-                pass
+            match.tp_src = int(policy['port-src'])
+            count += 1
 
         if policy.get('port-dst', '-') != '-':
-            try:
-                match.tp_dst = int(policy['port-dst'])
-                count += 1
-            except Exception:
-                pass
+            match.tp_dst = int(policy['port-dst'])
+            count += 1
 
         priority = 2000 if policy['action'] == 'Allow' else 1000
         rule.priority = priority + count
 
         if policy['action'] == 'Allow':
             rule.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        else:
-            pass
 
 
         # End Code Here
