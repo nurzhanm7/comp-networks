@@ -39,12 +39,13 @@ def firewall_policy_processing(policies):
     rules = []
 
     for policy in policies:
-        # Create a flow_mod message and match template
-        fm = of.ofp_flow_mod()
+        # Enter your code here to implement matching and block/allow rules.  See the links
+        # in Implementation Hints on how to do this. 
+        # HINT:  Think about how to use the priority in your flow modification.
+        rule = None # Please note that you need to redefine this variable below to create a valid POX Flow Modification Object
+        rule = of.ofp_flow_mod()
         match = of.ofp_match()
-        fm.match = match
-
-        # Track specificity (used to tune priority)
+        rule.match = match
         specificity = 0
 
         # L2 matches: MAC addresses
@@ -117,19 +118,18 @@ def firewall_policy_processing(policies):
         # - Allow rules must override Block rules => give Allow rules higher base
         # - Increase priority by specificity so more specific rules take precedence
         base_priority = 2000 if policy['action'] == 'Allow' else 1000
-        fm.priority = base_priority + specificity
+        rule.priority = base_priority + specificity
 
-        # Actions:
-        # - Block: install a drop (no actions)
-        # - Allow: install a flow that forwards packets (use FLOOD so L2 learning can still work)
         if policy['action'] == 'Allow':
-            fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+            rule.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
         else:
             # Block: no actions -> dropped by switch
             pass
 
-        # Helpful debug
-        print('Added Rule', policy['rulenum'], ':', policy.get('comment', ''))
-        rules.append(fm)
+
+        # End Code Here
+        print('Added Rule ',policy['rulenum'],': ',policy['comment'])
+        #print(rule)   #Uncomment this to debug your "rule"
+        rules.append(rule)
 
     return rules
