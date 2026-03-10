@@ -36,47 +36,41 @@ def firewall_policy_processing(policies):
     IPAddr() unless you reformat the CIDR notation.  Look at the https://github.com/att/pox/blob/master/pox/lib/addresses.py
     for what POX is expecting as an IP Address.
     '''
+
     rules = []
 
     for policy in policies:
         # Enter your code here to implement matching and block/allow rules.  See the links
         # in Implementation Hints on how to do this. 
         # HINT:  Think about how to use the priority in your flow modification.
+
         rule = None # Please note that you need to redefine this variable below to create a valid POX Flow Modification Object
         rule = of.ofp_flow_mod()
         match = of.ofp_match()
         rule.match = match
-        specificity = 0
-
-        # L2 matches: MAC addresses
+        count = 0
         if policy['mac-src'] != '-':
             try:
                 match.dl_src = EthAddr(policy['mac-src'])
-                specificity += 1
+                count += 1
             except Exception:
                 pass
 
         if policy['mac-dst'] != '-':
             try:
                 match.dl_dst = EthAddr(policy['mac-dst'])
-                specificity += 1
+                count += 1
             except Exception:
                 pass
 
-        # If any IP-based fields exist, ensure we match on IPv4 ethertype
-        ip_match_required = False
         if policy['ip-src'] != '-' or policy['ip-dst'] != '-' or policy['ipprotocol'] != '-' or policy['port-src'] != '-' or policy['port-dst'] != '-':
-            ip_match_required = True
-            match.dl_type = 0x0800  # IPv4
+            match.dl_type = 0x0800
 
-        # IP source/destination (CIDR)
         if policy.get('ip-src', '-') != '-':
-            # process_configuration is expected to have split ip-src into address and subnet parts
             try:
-                # assign address and mask length separately (compatible with POX match fields)
                 match.nw_src = IPAddr(policy['ip-src-address'])
                 match.nw_src_mask = int(policy['ip-src-subnet'])
-                specificity += 2
+                count += 2
             except Exception:
                 pass
 
@@ -84,46 +78,40 @@ def firewall_policy_processing(policies):
             try:
                 match.nw_dst = IPAddr(policy['ip-dst-address'])
                 match.nw_dst_mask = int(policy['ip-dst-subnet'])
-                specificity += 2
+                count += 2
             except Exception:
                 pass
 
-        # IP protocol (nw_proto) and transport ports
         if policy.get('ipprotocol', '-') != '-':
             try:
                 proto = int(policy['ipprotocol'])
                 match.nw_proto = proto
-                specificity += 1
+                count += 1
             except Exception:
                 proto = None
         else:
             proto = None
 
-        # For TCP/UDP port matching, set tp_src/tp_dst
         if policy.get('port-src', '-') != '-':
             try:
                 match.tp_src = int(policy['port-src'])
-                specificity += 1
+                count += 1
             except Exception:
                 pass
 
         if policy.get('port-dst', '-') != '-':
             try:
                 match.tp_dst = int(policy['port-dst'])
-                specificity += 1
+                count += 1
             except Exception:
                 pass
 
-        # Priority strategy:
-        # - Allow rules must override Block rules => give Allow rules higher base
-        # - Increase priority by specificity so more specific rules take precedence
-        base_priority = 2000 if policy['action'] == 'Allow' else 1000
-        rule.priority = base_priority + specificity
+        priority = 2000 if policy['action'] == 'Allow' else 1000
+        rule.priority = priority + count
 
         if policy['action'] == 'Allow':
             rule.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
         else:
-            # Block: no actions -> dropped by switch
             pass
 
 
@@ -131,5 +119,5 @@ def firewall_policy_processing(policies):
         print('Added Rule ',policy['rulenum'],': ',policy['comment'])
         #print(rule)   #Uncomment this to debug your "rule"
         rules.append(rule)
-
+    
     return rules
