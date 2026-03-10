@@ -6,7 +6,7 @@ from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 from pox.lib.revent import *
-from pox.lib.addresses import EthAddr
+from pox.lib.addresses import EthAddr, IPAddr
 
 # You may use this space before the firewall_policy_processing function to add any extra function that you 
 # may need to complete your firewall implementation.  No additional functions "should" be required to complete
@@ -36,20 +36,100 @@ def firewall_policy_processing(policies):
     IPAddr() unless you reformat the CIDR notation.  Look at the https://github.com/att/pox/blob/master/pox/lib/addresses.py
     for what POX is expecting as an IP Address.
     '''
-
     rules = []
 
     for policy in policies:
-        # Enter your code here to implement matching and block/allow rules.  See the links
-        # in Implementation Hints on how to do this. 
-        # HINT:  Think about how to use the priority in your flow modification.
+        # Create a flow_mod message and match template
+        fm = of.ofp_flow_mod()
+        match = of.ofp_match()
+        fm.match = match
 
-        rule = None # Please note that you need to redefine this variable below to create a valid POX Flow Modification Object
+        # Track specificity (used to tune priority)
+        specificity = 0
 
+        # L2 matches: MAC addresses
+        if policy['mac-src'] != '-':
+            try:
+                match.dl_src = EthAddr(policy['mac-src'])
+                specificity += 1
+            except Exception:
+                pass
 
-        # End Code Here
-        print('Added Rule ',policy['rulenum'],': ',policy['comment'])
-        #print(rule)   #Uncomment this to debug your "rule"
-        rules.append(rule)
-    
+        if policy['mac-dst'] != '-':
+            try:
+                match.dl_dst = EthAddr(policy['mac-dst'])
+                specificity += 1
+            except Exception:
+                pass
+
+        # If any IP-based fields exist, ensure we match on IPv4 ethertype
+        ip_match_required = False
+        if policy['ip-src'] != '-' or policy['ip-dst'] != '-' or policy['ipprotocol'] != '-' or policy['port-src'] != '-' or policy['port-dst'] != '-':
+            ip_match_required = True
+            match.dl_type = 0x0800  # IPv4
+
+        # IP source/destination (CIDR)
+        if policy.get('ip-src', '-') != '-':
+            # process_configuration is expected to have split ip-src into address and subnet parts
+            try:
+                # assign address and mask length separately (compatible with POX match fields)
+                match.nw_src = IPAddr(policy['ip-src-address'])
+                match.nw_src_mask = int(policy['ip-src-subnet'])
+                specificity += 2
+            except Exception:
+                pass
+
+        if policy.get('ip-dst', '-') != '-':
+            try:
+                match.nw_dst = IPAddr(policy['ip-dst-address'])
+                match.nw_dst_mask = int(policy['ip-dst-subnet'])
+                specificity += 2
+            except Exception:
+                pass
+
+        # IP protocol (nw_proto) and transport ports
+        if policy.get('ipprotocol', '-') != '-':
+            try:
+                proto = int(policy['ipprotocol'])
+                match.nw_proto = proto
+                specificity += 1
+            except Exception:
+                proto = None
+        else:
+            proto = None
+
+        # For TCP/UDP port matching, set tp_src/tp_dst
+        if policy.get('port-src', '-') != '-':
+            try:
+                match.tp_src = int(policy['port-src'])
+                specificity += 1
+            except Exception:
+                pass
+
+        if policy.get('port-dst', '-') != '-':
+            try:
+                match.tp_dst = int(policy['port-dst'])
+                specificity += 1
+            except Exception:
+                pass
+
+        # Priority strategy:
+        # - Allow rules must override Block rules => give Allow rules higher base
+        # - Increase priority by specificity so more specific rules take precedence
+        base_priority = 2000 if policy['action'] == 'Allow' else 1000
+        fm.priority = base_priority + specificity
+
+        # Actions:
+        # - Block: install a drop (no actions)
+        # - Allow: install a flow that forwards packets (use FLOOD so L2 learning can still work)
+        if policy['action'] == 'Allow':
+            fm.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        else:
+            # Block: no actions -> dropped by switch
+            pass
+
+        # Helpful debug
+        print('Added Rule', policy['rulenum'], ':', policy.get('comment', ''))
+        rules.append(fm)
+
     return rules
